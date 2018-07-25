@@ -52,19 +52,30 @@ def create_animation(U, V):
     speed = 50
     frame_num = int(len(U) / speed)
 
-    def animate(i):
-        ax_U.imshow(U[i * speed], cmap=plt.cm.RdBu)
-        ax_V.imshow(V[i * speed], cmap=plt.cm.RdBu)
-
     fig = plt.figure(figsize=(8, 5))
+
     ax_U = plt.subplot(121)
     ax_U.set_axis_off()
     ax_U.set_title(r'U')
+    Uimg = ax_U.imshow(U[0], cmap=plt.cm.RdBu)
+    plt.colorbar(mappable=Uimg, ax=ax_U)
+
     ax_V = plt.subplot(122)
     ax_V.set_title(r'V')
     ax_V.set_axis_off()
+    Vimg = ax_V.imshow(V[0], cmap=plt.cm.RdBu)
+    plt.colorbar(mappable=Vimg, ax=ax_V)
 
-    anim = animation.FuncAnimation(fig, animate, frames=frame_num, blit=False)
+    def animate(i):
+        Udata = U[i * speed]
+        Uimg.set_data(Udata)
+        Uimg.set_clim(np.max(Udata), np.min(Udata))
+
+        Vdata = V[i * speed]
+        Vimg.set_clim(np.max(Vdata), np.min(Vdata))
+        Vimg.set_data(Vdata)
+
+    anim = animation.FuncAnimation(fig, animate, frames=frame_num)
     anim.save('animation.mp4')
 
 
