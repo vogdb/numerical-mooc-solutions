@@ -23,68 +23,47 @@ def constructMatrix(nx, ny, sigma):
         Matrix of implicit 2D heat equation
     """
 
-    A = np.zeros(((nx - 2) * (ny - 2), (nx - 2) * (ny - 2)))
+    def get_row_number(i, j):
+        return (j - 1) * (nx - 2) + (i - 1)
 
-    row_number = 0  # row counter
-    for j in range(1, ny - 1):
-        for i in range(1, nx - 1):
+    shape = ((nx - 2) * (ny - 2), (nx - 2) * (ny - 2))
+    A = np.zeros(shape)
+    # -1 * (i-1,j) + -1 * (i+1,j) + (1/sigma + 4) * (i,j) + -1 * (i,j-1) + -1 * (i,j+1)
+    A_i_j = np.eye(shape[0]) * (1 / sigma + 4)  # main i,j
+    A_im1_j = np.eye(shape[0], k=-1) * (-1)  # i-1,j
+    A_ipl1_j = np.eye(shape[0], k=1) * (-1)  # i+1,j
+    A_i_jm1 = np.eye(shape[0], k=-(nx - 2)) * (-1)  # i,j-1
+    A_i_jpl1 = np.eye(shape[0], k=nx - 2) * (-1)  # i,j+1
+    A += A_i_j + A_im1_j + A_ipl1_j + A_i_jm1 + A_i_jpl1
 
-            # Corners
-            if i == 1 and j == 1:  # Bottom left corner (Dirichlet down and left)
-                A[row_number, row_number] = 1 / sigma + 4  # Set diagonal
-                A[row_number, row_number + 1] = -1  # fetch i+1
-                A[row_number, row_number + nx - 2] = -1  # fetch j+1
+    # General boundary conditions. They are relevant either for Dirichle, Neumann and etc.
+    # A contains [1, nx-2] and [1, ny-2] elements, so boundaries [:,0], [:,ny-1], [0,:], [nx-1,:]
+    # are not presented in A.
 
-            elif i == nx - 2 and j == 1:  # Bottom right corner (Dirichlet down, Neumann right)
-                A[row_number, row_number] = 1 / sigma + 3  # Set diagonal
-                A[row_number, row_number - 1] = -1  # Fetch i-1
-                A[row_number, row_number + nx - 2] = -1  # fetch j+1
+    # Bottom [:,0] and Top [:,ny-1] boundaries. They are implicitly applied as they are not presented in A.
+    # Bottom has negative indexes and Top has indexes outside of A.shape.
+    # row_number = get_row_number(np.arange(1, nx - 1), 1)
+    # A[row_number - 1, row_number] = 0
+    # row_number = get_row_number(np.arange(1, nx - 1), ny - 1)
+    # A[row_number + 1, row_number] = 0
 
-            elif i == 1 and j == ny - 2:  # Top left corner (Neumann up, Dirichlet left)
-                A[row_number, row_number] = 1 / sigma + 3  # Set diagonal
-                A[row_number, row_number + 1] = -1  # fetch i+1
-                A[row_number, row_number - (nx - 2)] = -1  # fetch j-1
+    # Left [0,:] boundary. Now [1,:] considers its left neighbour as [0,:] which is not true.
+    # It's left neighbour is [nx-2,:]. So, we must zero its participation.
+    row_number = get_row_number(1, np.arange(1, ny - 1))
+    A[row_number, row_number - 1] = 0
+    # Right [nx-1,:] boundary. Now [nx-2,:] considers its right neighbour as [nx-1,:] which is not true.
+    # It's right neighbour is [1,:]. So, we must zero its participation.
+    row_number = get_row_number(nx - 2, np.arange(1, ny - 1 - 1))  # (ny - 1 - 1) for the last A[-1,-1]
+    A[row_number, row_number + 1] = 0
 
-            elif i == nx - 2 and j == ny - 2:  # Top right corner (Neumann up and right)
-                A[row_number, row_number] = 1 / sigma + 2  # Set diagonal
-                A[row_number, row_number - 1] = -1  # Fetch i-1
-                A[row_number, row_number - (nx - 2)] = -1  # fetch j-1
+    # right boundary Neumann condition
+    # (nx-2)+1,j becomes (nx-2),j, which decreases by 1 original (nx-2),j
+    row_number = get_row_number(nx - 2, np.arange(1, ny - 1))
+    A[row_number, row_number] -= 1
 
-            # Sides
-            elif i == 1:  # Left boundary (Dirichlet)
-                A[row_number, row_number] = 1 / sigma + 4  # Set diagonal
-                A[row_number, row_number + 1] = -1  # fetch i+1
-                A[row_number, row_number + nx - 2] = -1  # fetch j+1
-                A[row_number, row_number - (nx - 2)] = -1  # fetch j-1
-
-            elif i == nx - 2:  # Right boundary (Neumann)
-                A[row_number, row_number] = 1 / sigma + 3  # Set diagonal
-                A[row_number, row_number - 1] = -1  # Fetch i-1
-                A[row_number, row_number + nx - 2] = -1  # fetch j+1
-                A[row_number, row_number - (nx - 2)] = -1  # fetch j-1
-
-            elif j == 1:  # Bottom boundary (Dirichlet)
-                A[row_number, row_number] = 1 / sigma + 4  # Set diagonal
-                A[row_number, row_number + 1] = -1  # fetch i+1
-                A[row_number, row_number - 1] = -1  # fetch i-1
-                A[row_number, row_number + nx - 2] = -1  # fetch j+1
-
-            elif j == ny - 2:  # Top boundary (Neumann)
-                A[row_number, row_number] = 1 / sigma + 3  # Set diagonal
-                A[row_number, row_number + 1] = -1  # fetch i+1
-                A[row_number, row_number - 1] = -1  # fetch i-1
-                A[row_number, row_number - (nx - 2)] = -1  # fetch j-1
-
-            # Interior points
-            else:
-                A[row_number, row_number] = 1 / sigma + 4  # Set diagonal
-                A[row_number, row_number + 1] = -1  # fetch i+1
-                A[row_number, row_number - 1] = -1  # fetch i-1
-                A[row_number, row_number + nx - 2] = -1  # fetch j+1
-                A[row_number, row_number - (nx - 2)] = -1  # fetch j-1
-
-            row_number += 1  # Jump to next row of the matrix!
-
+    # top boundary Neumann condition
+    row_number = get_row_number(np.arange(1, nx - 1), ny - 2)
+    A[row_number, row_number] -= 1
     return A
 
 
@@ -269,5 +248,8 @@ A = constructMatrix(nx, ny, sigma)
 dt = sigma * min(dx, dy) ** 2 / alpha
 T, T_record = btcs_2D(Ti.copy(), A, nt, sigma, T_bc, nx, ny, dt)
 
-np.savez('implicit_original', T=T_record, A=A)
-create_animation('implicit_original', T_record, speed=2)
+original = np.load('implicit_original.npz')
+T_original, A_original = original['T'], original['A']
+print(np.allclose(T_record, T_original))
+print(np.array_equal(A, A_original))
+create_animation('implicit', T_record, speed=2)
