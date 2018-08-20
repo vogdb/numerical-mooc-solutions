@@ -270,4 +270,5 @@ dt = sigma * min(dx, dy) ** 2 / alpha
 T, T_record = btcs_2D(Ti.copy(), A, nt, sigma, T_bc, nx, ny, dt)
 
 np.savez('implicit_original', T=T_record, A=A)
-create_animation('implicit_original', T_record, speed=2)
+# flip to show it as we see it in our calculation
+create_animation('implicit_original', [np.flip(T, 0) for T in T_record], speed=2)

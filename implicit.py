@@ -252,4 +252,5 @@ original = np.load('implicit_original.npz')
 T_original, A_original = original['T'], original['A']
 print(np.allclose(T_record, T_original))
 print(np.array_equal(A, A_original))
-create_animation('implicit', T_record, speed=2)
+# flip to show it as we see it in our calculation
+create_animation('implicit', [np.flip(T, 0) for T in T_record], speed=2)
