@@ -1,4 +1,7 @@
 import numpy as np
+import time
+import numba
+from numba import jit
 
 
 def p_analytical(X, Y, L):
@@ -255,6 +258,57 @@ def map_1Dto2D(nx, ny, p_1D, p_bc):
     return p
 
 
+@jit(nopython=True)
+def poisson2d_SOR(p, pn, b, l2_target, omega):
+    '''Solves the Laplace equation using SOR with a 5-point stencil
+
+    Parameters:
+    ----------
+    p: 2D array of float
+        Initial potential distribution
+    b: 2D array of float
+        right hand side of Poisson
+    l2_target: float
+        Stopping criterion
+    omega: float
+        Relaxation parameter
+
+    Returns:
+    -------
+    p: 2D array of float
+        Potential distribution after relaxation
+    '''
+
+    iterations = 0
+    iter_diff = l2_target + 1  # initialize iter_diff to be larger than l2_target
+    ny, nx = p.shape
+
+    while iter_diff > l2_target:
+        for j in range(ny):
+            for i in range(nx):
+                pn[j, i] = p[j, i]
+
+        iter_diff = 0.0
+        denominator = 0.0
+
+        for j in range(1, ny - 1):
+            for i in range(1, nx - 1):
+                # p[j, i] = 0.25 * (p[j, i - 1] + p[j, i + 1] + p[j - 1, i] + p[j + 1, i] - b[j, i])
+                p[j, i] = (1 - omega) * p[j, i] + omega * .25 * \
+                          (p[j, i - 1] + p[j, i + 1] + p[j - 1, i] + p[j + 1, i] - b[j, i])
+
+        for j in range(ny):
+            for i in range(nx):
+                iter_diff += (p[j, i] - pn[j, i]) ** 2
+                denominator += (pn[j, i] * pn[j, i])
+
+        iter_diff /= denominator
+        iter_diff = iter_diff ** 0.5
+        iterations += 1
+
+    return p, iterations
+
+
 def compare():
     nx = 41
     ny = 41
@@ -266,14 +320,27 @@ def compare():
     X, Y, x, y, p_i, b, dx, dy, L = poisson_IG(nx, ny, xmax, xmin, ymax, ymin)
     p_an = p_analytical(X, Y, L)
 
+    start_time = time.time()
     A = constructMatrix(nx, ny)
     p_bc = 0
     rhs = generateRHS(nx, ny, dx ** 2, b, p_bc)
     p_lin = np.linalg.solve(A, rhs)
     p_lin = map_1Dto2D(nx, ny, p_lin, p_bc)
+    end_time = time.time()
+    print('matrix calc time: {:.3f} ms'.format(1000 * (end_time - start_time)))
+
+    start_time = time.time()
+    p_i[int(ny/2), int(nx/2)] = 1e-5
+    p_sor, iterations = poisson2d_SOR(p_i, np.empty_like(p_i), b * dx**2, 1e-8, 2. / (1 + np.pi / nx))
+    end_time = time.time()
+    print('SOR relaxation calc time: {:.3f} ms'.format(1000 * (end_time - start_time)))
+
     print(np.allclose(p_an, p_lin, atol=1e-3))
-    print(np.hstack((p_an[:, 1][:, np.newaxis], p_lin[:, 1][:, np.newaxis])))
-    print(np.hstack((p_an[1, :][:, np.newaxis], p_lin[1, :][:, np.newaxis])))
+    print(np.allclose(p_an, p_sor, atol=1e-3))
+    # print(np.hstack((p_an[:, 1][:, np.newaxis], p_lin[:, 1][:, np.newaxis])))
+    # print(np.hstack((p_an[1, :][:, np.newaxis], p_lin[1, :][:, np.newaxis])))
+    # print(np.hstack((p_an[:, 1][:, np.newaxis], p_sor[:, 1][:, np.newaxis])))
+    # print(np.hstack((p_an[1, :][:, np.newaxis], p_sor[1, :][:, np.newaxis])))
 
 
 compare()
